@@ -103,8 +103,9 @@ void loop() {
   if (!pacoteRecebido()) {
     // Se não recebeu, verifica se está na hora de enviar os dados
     if (millis() > msUltimoEnvio + (sensorConfig.intervaloEnvio * 1000)) {
+      lerDados();
       enviaDados();
-      msUltimoEnvio = millis();
+      //msUltimoEnvio atribuido na funcao enviaDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
     }
   }
   //-------FIM DA COMUNICAÇÃO------------
@@ -120,19 +121,25 @@ void loop() {
    Le dados dos sensores
 */
 void lerDados() {
-//#if defined(DEBUG)
-//  Serial.println("---------------------------");
-//#endif
+  boolean flagEnviar = false;
+  //#if defined(DEBUG)
+  //  Serial.println("---------------------------");
+  //#endif
   for (char i = 0; i <= 7; i++) {
     //entradas
-    entradas[i] = IO.digitalRead(i + 8);
-//#if defined(DEBUG)
-//    Serial.print(entradas[i]); Serial.print(" ");
-//#endif
+    boolean valor = IO.digitalRead(i + 8);
+    if(valor != entradas[i]){
+      entradas[i] = valor;
+      flagEnviar = true;
+    }
+    //#if defined(DEBUG)
+    //    Serial.print(entradas[i]); Serial.print(" ");
+    //#endif
   }
-//#if defined(DEBUG)
-//  Serial.println();
-//#endif
+  if(flagEnviar) enviaDados();
+  //#if defined(DEBUG)
+  //  Serial.println();
+  //#endif
 }
 
 /**
@@ -140,16 +147,16 @@ void lerDados() {
 */
 void atualizaSaidas() {
 #if defined(DEBUG)
-  Serial.println("SAIDAS ");
+  Serial.print("SAIDAS: ");
 #endif
   for (char i = 0; i < 8; i++) {
     IO.digitalWrite(i, saidas[i]);
 #if defined(DEBUG)
-    Serial.print("-->"); Serial.println(saidas[i]);
+    Serial.print(saidas[i]); Serial.print(" ");
 #endif
   }
 #if defined(DEBUG)
-  Serial.println("-------------------------------------------");
+  Serial.println();
 #endif
 }
 
@@ -175,6 +182,19 @@ void salvaSensorConfig() {
 }
 
 /**
+   Envia configurações para a central
+*/
+void enviaConfig() {
+  unsigned char msg[2] = {0};
+
+  msg[0] = sensorConfig.endereco;
+  msg[1] = sensorConfig.intervaloEnvio;
+
+  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msg), msg);
+
+}
+
+/**
    Envia dados para a central
 */
 void enviaDados() {
@@ -187,18 +207,19 @@ void enviaDados() {
     msg[0] += entradas[i];
     //saidas
     msg[1] = (msg[1] << 1);
-//    Serial.print(saidas[i]);
-//    Serial.print(" ");
+    //    Serial.print(saidas[i]);
+    //    Serial.print(" ");
     msg[1] += saidas[i];
   }
 
-//#if defined(DEBUG)
-//  Serial.println(F("\nEnviando..."));
-//  Serial.println(msg[1]);
-//  Serial.println("<<<<<<<<<<<<<<<<<<<<<");
-//#endif
+  //#if defined(DEBUG)
+  //  Serial.println(F("\nEnviando..."));
+  //  Serial.println(msg[1]);
+  //  Serial.println("<<<<<<<<<<<<<<<<<<<<<");
+  //#endif
 
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msg), msg);
+  msUltimoEnvio = millis();
 }
 
 bool pacoteRecebido() {
@@ -240,9 +261,25 @@ bool pacoteRecebido() {
   canPkt.comando = buf[1];
 
   switch (canPkt.comando) {
+    case SEND_CONFIG: {
+#if defined(DEBUG)
+        Serial.println(F("SEND_CONFIG"));
+#endif
+        enviaConfig();
+      };
+      break;
+
+    case SEND_DATA: {
+#if defined(DEBUG)
+        Serial.println(F("SEND_DATA"));
+#endif
+        enviaDados();
+      };
+      break;
+
     case CHANGE_ID: {
 #if defined(DEBUG)
-        Serial.println(F("Alterar ID"));
+        Serial.println(F("CHANGE_ID"));
 #endif
         if (buf[2] > 0) sensorConfig.endereco = buf[2];
         //salva novas configuracoes
@@ -251,15 +288,25 @@ bool pacoteRecebido() {
       };
       break;
 
-    case CHANGE_OUTPUT_STATE: {
-        if (buf[2] > 7) return false;
+    case CHANGE_SEND_TIME: {
 #if defined(DEBUG)
-        Serial.print("Saida["); Serial.print(buf[2]); Serial.print("]:"); Serial.println(buf[3]);
+        Serial.println(F("CHANGE_SEND_TIME"));
 #endif
+        if (buf[2] >= 0) sensorConfig.intervaloEnvio = buf[2];
+        //salva novas configuracoes
+        salvaSensorConfig();
+        resetSensor();
+      };
+      break;
+
+    case CHANGE_OUTPUT_STATE: {
+#if defined(DEBUG)
+        Serial.println(F("CHANGE_OUTPUT_STATE"));
+#endif
+        if (buf[2] > 7) return false;
         if (buf[3] == 0 || buf[3] == 1) {
           saidas[buf[2]] = buf[3] == 1;
           atualizaSaidas();
-          //IO.digitalWrite(buf[2], buf[3]);
         }
       };
       break;
