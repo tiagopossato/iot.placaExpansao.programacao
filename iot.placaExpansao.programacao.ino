@@ -75,7 +75,7 @@ void setup()
     salvaSensorConfig();
   }
 
-  while (CAN_OK != CAN.begin(CAN_500KBPS))              // init can bus : baudrate = 500k
+  while (CAN_OK != CAN.begin(CAN_100KBPS))              // init can bus : baudrate = 500k
   {
 #if defined(DEBUG)
     Serial.println(F("CAN BUS Shield init fail"));
