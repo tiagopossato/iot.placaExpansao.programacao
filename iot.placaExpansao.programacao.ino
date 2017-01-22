@@ -17,11 +17,13 @@ MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
 
 Adafruit_MCP23017 IO;
 
+const unsigned char resetIO = 15; //pino ligado ao pino de reset do controlador de IO
+
 /**
    Função para resetar o programa
    Utiliza o WatchDog Timer
 */
-void resetSensor() {
+void reiniciar() {
 #if defined(DEBUG)
   Serial.println("Reiniciando...");
 #endif
@@ -57,15 +59,7 @@ void setup()
   Serial.println(F("----------------------------------------"));
 #endif
 
-  IO.begin();// use default address 0
-  for (char i = 8; i <= 15; i++) {
-    IO.pinMode(i, INPUT);
-  }
-
-  for (char i = 0; i < 8; i++) {
-    IO.pinMode(i, OUTPUT);
-  }
-  atualizaSaidas();
+  iniciaIO();
 
   leSensorConfig();
   //  if (sensorConfig.intervaloLeitura < 0 || sensorConfig.intervaloLeitura > 3600 ) {
@@ -117,6 +111,26 @@ void loop() {
 
 }
 
+void iniciaIO() {
+
+  pinMode(resetIO, OUTPUT);
+
+  digitalWrite(resetIO, LOW);
+  delay(10);
+  digitalWrite(resetIO, HIGH);
+
+  IO.begin();// use default address 0
+  
+  for (char i = 8; i <= 15; i++) {
+    IO.pinMode(i, INPUT);
+  }
+
+  for (char i = 0; i < 8; i++) {
+    IO.pinMode(i, OUTPUT);
+  }
+  atualizaSaidas();
+}
+
 /**
    Le dados dos sensores
 */
@@ -128,7 +142,7 @@ void lerDados() {
   for (char i = 0; i <= 7; i++) {
     //entradas
     boolean valor = IO.digitalRead(i + 8);
-    if(valor != entradas[i]){
+    if (valor != entradas[i]) {
       entradas[i] = valor;
       flagEnviar = true;
     }
@@ -136,7 +150,7 @@ void lerDados() {
     //    Serial.print(entradas[i]); Serial.print(" ");
     //#endif
   }
-  if(flagEnviar) enviaDados();
+  if (flagEnviar) enviaDados();
   //#if defined(DEBUG)
   //  Serial.println();
   //#endif
@@ -284,7 +298,7 @@ bool pacoteRecebido() {
         if (buf[2] > 0) sensorConfig.endereco = buf[2];
         //salva novas configuracoes
         salvaSensorConfig();
-        resetSensor();
+        reiniciar();
       };
       break;
 
@@ -295,7 +309,7 @@ bool pacoteRecebido() {
         if (buf[2] >= 0) sensorConfig.intervaloEnvio = buf[2];
         //salva novas configuracoes
         salvaSensorConfig();
-        resetSensor();
+        enviaDados();
       };
       break;
 
@@ -310,6 +324,7 @@ bool pacoteRecebido() {
         }
       };
       break;
+
 #if defined(DEBUG)
     default:
       Serial.println(F("Comando nao reconhecido"));
