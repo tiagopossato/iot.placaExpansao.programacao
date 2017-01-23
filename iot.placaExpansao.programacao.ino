@@ -59,20 +59,20 @@ void setup()
   Serial.println(F("----------------------------------------"));
 #endif
 
-  iniciaIO();
+  iniciarIO();
 
   leSensorConfig();
   //  if (sensorConfig.intervaloLeitura < 0 || sensorConfig.intervaloLeitura > 3600 ) {
   //    sensorConfig.intervaloLeitura = 0;
-  //    salvaSensorConfig();
+  //    salvarSensorConfig();
   //  }
   if (sensorConfig.intervaloEnvio < 0 || sensorConfig.intervaloEnvio > 3600 ) {
     sensorConfig.intervaloEnvio = 0;
-    salvaSensorConfig();
+    salvarSensorConfig();
   }
   if (sensorConfig.endereco == 0) {
     sensorConfig.endereco = 255;
-    salvaSensorConfig();
+    salvarSensorConfig();
   }
 
   while (CAN_OK != CAN.begin(CAN_100KBPS))              // init can bus : baudrate = 500k
@@ -87,6 +87,8 @@ void setup()
   Serial.println(F("Remota: CAN BUS init ok!"));
 #endif
 
+  unsigned char msgCfg[1] = {ONLINE};
+  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgCfg), msgCfg);
 
 }
 
@@ -97,21 +99,21 @@ void loop() {
   if (!pacoteRecebido()) {
     // Se não recebeu, verifica se está na hora de enviar os dados
     if (millis() > msUltimoEnvio + (sensorConfig.intervaloEnvio * 1000)) {
-      lerDados();
-      enviaDados();
-      //msUltimoEnvio atribuido na funcao enviaDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
+      lerEntradas();
+      enviarDados();
+      //msUltimoEnvio atribuido na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
     }
   }
   //-------FIM DA COMUNICAÇÃO------------
   if (millis() > msUltimaLeitura + intervaloLeituras) {
-    lerDados();
+    lerEntradas();
     msUltimaLeitura = millis();
   }
 
 
 }
 
-void iniciaIO() {
+void iniciarIO() {
 
   pinMode(resetIO, OUTPUT);
 
@@ -120,7 +122,7 @@ void iniciaIO() {
   digitalWrite(resetIO, HIGH);
 
   IO.begin();// use default address 0
-  
+
   for (char i = 8; i <= 15; i++) {
     IO.pinMode(i, INPUT);
   }
@@ -128,17 +130,17 @@ void iniciaIO() {
   for (char i = 0; i < 8; i++) {
     IO.pinMode(i, OUTPUT);
   }
-  atualizaSaidas();
+  atualizarSaidas();
 }
 
 /**
    Le dados dos sensores
 */
-void lerDados() {
+void lerEntradas() {
   boolean flagEnviar = false;
-  //#if defined(DEBUG)
-  //  Serial.println("---------------------------");
-  //#endif
+  //  #if defined(DEBUG)
+  //    Serial.println("---------------------------");
+  //  #endif
   for (char i = 0; i <= 7; i++) {
     //entradas
     boolean valor = IO.digitalRead(i + 8);
@@ -146,20 +148,20 @@ void lerDados() {
       entradas[i] = valor;
       flagEnviar = true;
     }
-    //#if defined(DEBUG)
-    //    Serial.print(entradas[i]); Serial.print(" ");
-    //#endif
+    //    #if defined(DEBUG)
+    //        Serial.print(entradas[i]); Serial.print(" ");
+    //    #endif
   }
-  if (flagEnviar) enviaDados();
-  //#if defined(DEBUG)
-  //  Serial.println();
-  //#endif
+  if (flagEnviar) enviarDados();
+  //  #if defined(DEBUG)
+  //    Serial.println();
+  //  #endif
 }
 
 /**
    Atualiza estado das saídas
 */
-void atualizaSaidas() {
+void atualizarSaidas() {
 #if defined(DEBUG)
   Serial.print("SAIDAS: ");
 #endif
@@ -190,7 +192,7 @@ void leSensorConfig() {
 /**
    Escreve na memória EEPROM a configuração do sensor
 */
-void salvaSensorConfig() {
+void salvarSensorConfig() {
   EEPROM.put(0, sensorConfig);
   leSensorConfig();
 }
@@ -198,41 +200,46 @@ void salvaSensorConfig() {
 /**
    Envia configurações para a central
 */
-void enviaConfig() {
-  unsigned char msg[2] = {0};
+void enviarConfig() {
+  unsigned char msgCfg[2] = {0};
 
-  msg[0] = sensorConfig.endereco;
-  msg[1] = sensorConfig.intervaloEnvio;
+  msgCfg[0] = SEND_TIME;
+  msgCfg[1] = sensorConfig.intervaloEnvio;
 
-  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msg), msg);
+  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgCfg), msgCfg);
 
 }
 
 /**
    Envia dados para a central
 */
-void enviaDados() {
-  unsigned char msg[2] = {0};
+void enviarDados() {
+  unsigned char msgDados[2];
 
+  msgDados[0] = OUTPUT_1_STATE;
+  msgDados[1] = 0;
   //Converte os dados binarios em um unico numero de 8bits
   for (char i = 7; i >= 0; i--) {
     //entradas
-    msg[0] = (msg[0] << 1);
-    msg[0] += entradas[i];
+    msgDados[1] = (msgDados[1] << 1);
+    msgDados[1] += entradas[i];
+  }
+  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
+
+  delay(10);
+  msgDados[0] = INPUT_1_STATE;
+  msgDados[1] = 0;
+  //Converte os dados binarios em um unico numero de 8bits
+  for (char i = 7; i >= 0; i--) {
     //saidas
-    msg[1] = (msg[1] << 1);
+    msgDados[1] = (msgDados[1] << 1);
     //    Serial.print(saidas[i]);
     //    Serial.print(" ");
-    msg[1] += saidas[i];
+    msgDados[1] += saidas[i];
   }
 
-  //#if defined(DEBUG)
-  //  Serial.println(F("\nEnviando..."));
-  //  Serial.println(msg[1]);
-  //  Serial.println("<<<<<<<<<<<<<<<<<<<<<");
-  //#endif
+  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
 
-  CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msg), msg);
   msUltimoEnvio = millis();
 }
 
@@ -250,13 +257,15 @@ bool pacoteRecebido() {
   } canPkt;
 
   CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
+
 #if defined(DEBUG)
   for (char j = 0; j < 8; j++) {
     Serial.print(buf[j]);
-    Serial.print("   ");
+    Serial.print("  ");
   }
   Serial.println();
 #endif
+
   if (CAN.getCanId() != CENTRAL_ID) {
 #if defined(DEBUG)
     Serial.println(F("Mensagem nao enviada pela central"));
@@ -266,8 +275,12 @@ bool pacoteRecebido() {
 
   canPkt.canId = buf[0];
   if (canPkt.canId != sensorConfig.endereco) {
+    leSensorConfig();
 #if defined(DEBUG)
-    Serial.println(F("Esta mensagem nao e para este dispositivo"));
+    Serial.print(F("Esta mensagem nao e para este dispositivo: "));
+    Serial.print(canPkt.canId);
+    Serial.print(F(" != "));
+    Serial.println(sensorConfig.endereco);
 #endif
     return false;
   }
@@ -279,7 +292,7 @@ bool pacoteRecebido() {
 #if defined(DEBUG)
         Serial.println(F("SEND_CONFIG"));
 #endif
-        enviaConfig();
+        enviarConfig();
       };
       break;
 
@@ -287,7 +300,7 @@ bool pacoteRecebido() {
 #if defined(DEBUG)
         Serial.println(F("SEND_DATA"));
 #endif
-        enviaDados();
+        enviarDados();
       };
       break;
 
@@ -297,7 +310,7 @@ bool pacoteRecebido() {
 #endif
         if (buf[2] > 0) sensorConfig.endereco = buf[2];
         //salva novas configuracoes
-        salvaSensorConfig();
+        salvarSensorConfig();
         reiniciar();
       };
       break;
@@ -308,8 +321,8 @@ bool pacoteRecebido() {
 #endif
         if (buf[2] >= 0) sensorConfig.intervaloEnvio = buf[2];
         //salva novas configuracoes
-        salvaSensorConfig();
-        enviaDados();
+        salvarSensorConfig();
+        enviarDados();
       };
       break;
 
@@ -320,7 +333,7 @@ bool pacoteRecebido() {
         if (buf[2] > 7) return false;
         if (buf[3] == 0 || buf[3] == 1) {
           saidas[buf[2]] = buf[3] == 1;
-          atualizaSaidas();
+          atualizarSaidas();
         }
       };
       break;
