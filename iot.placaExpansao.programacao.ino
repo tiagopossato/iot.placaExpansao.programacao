@@ -9,7 +9,7 @@
 #include "Adafruit_MCP23017.h"
 #include "overCAN.h"
 
-#define DEBUG
+//#define DEBUG
 #define CENTRAL_ID 0x00
 
 const int SPI_CS_PIN = 10;
@@ -67,7 +67,7 @@ void setup()
   //    salvarSensorConfig();
   //  }
   if (sensorConfig.intervaloEnvio < 0 || sensorConfig.intervaloEnvio > 3600 ) {
-    sensorConfig.intervaloEnvio = 0;
+    sensorConfig.intervaloEnvio = 1;
     salvarSensorConfig();
   }
   if (sensorConfig.endereco == 0) {
@@ -75,13 +75,14 @@ void setup()
     salvarSensorConfig();
   }
 
-  while (CAN_OK != CAN.begin(CAN_100KBPS))              // init can bus : baudrate = 500k
+  if (CAN_OK != CAN.begin(CAN_100KBPS))              // init can bus : baudrate = 100k
   {
 #if defined(DEBUG)
     Serial.println(F("CAN BUS Shield init fail"));
     Serial.println(F(" Init CAN BUS Shield again"));
 #endif
-    delay(100);
+    delay(250);
+    reiniciar();
   }
 #if defined(DEBUG)
   Serial.println(F("Remota: CAN BUS init ok!"));
