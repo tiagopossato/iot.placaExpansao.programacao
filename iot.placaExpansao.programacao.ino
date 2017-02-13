@@ -4,12 +4,12 @@
 #include <avr/wdt.h>
 #include <EEPROM.h>
 #include "SPI.h"
-#include "mcp_can.h"
+#include "mcp_can.h"//https://github.com/Seeed-Studio/CAN_BUS_Shield
 #include <Wire.h>
 #include "Adafruit_MCP23017.h"
 #include "overCAN.h"
 
-//#define DEBUG
+#define DEBUG
 #define CENTRAL_ID 0x00
 
 const int SPI_CS_PIN = 10;
@@ -163,18 +163,18 @@ void lerEntradas() {
    Atualiza estado das saídas
 */
 void atualizarSaidas() {
-#if defined(DEBUG)
-  Serial.print("SAIDAS: ");
-#endif
+  //#if defined(DEBUG)
+  //  Serial.print("SAIDAS: ");
+  //#endif
   for (char i = 0; i < 8; i++) {
     IO.digitalWrite(i, saidas[i]);
-#if defined(DEBUG)
-    Serial.print(saidas[i]); Serial.print(" ");
-#endif
+    //#if defined(DEBUG)
+    //    Serial.print(saidas[i]); Serial.print(" ");
+    //#endif
   }
-#if defined(DEBUG)
-  Serial.println();
-#endif
+  //#if defined(DEBUG)
+  //  Serial.println();
+  //#endif
 }
 
 /**
@@ -217,28 +217,31 @@ void enviarConfig() {
 void enviarDados() {
   unsigned char msgDados[2];
 
-  msgDados[0] = OUTPUT_1_STATE;
+  msgDados[0] = INPUT_1_STATE;
   msgDados[1] = 0;
   //Converte os dados binarios em um unico numero de 8bits
   for (char i = 7; i >= 0; i--) {
     //entradas
     msgDados[1] = (msgDados[1] << 1);
     msgDados[1] += entradas[i];
+    Serial.print(entradas[i]);
+    Serial.print(" ");
   }
+  Serial.println();
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
 
   delay(10);
-  msgDados[0] = INPUT_1_STATE;
+  msgDados[0] = OUTPUT_1_STATE;
   msgDados[1] = 0;
   //Converte os dados binarios em um unico numero de 8bits
   for (char i = 7; i >= 0; i--) {
     //saidas
     msgDados[1] = (msgDados[1] << 1);
-    //    Serial.print(saidas[i]);
-    //    Serial.print(" ");
     msgDados[1] += saidas[i];
+    //        Serial.print(saidas[i]);
+    //    Serial.print(" ");
   }
-
+  //  Serial.println();
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
 
   msUltimoEnvio = millis();
