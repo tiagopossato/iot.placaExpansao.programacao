@@ -1,10 +1,13 @@
 /**
-   Biblioteca utilizada
+   Bibliotecas utilizadas
+   https://github.com/Seeed-Studio/CAN_BUS_Shield
+   https://github.com/tiagopossato/overCAN
 */
+
 #include <avr/wdt.h>
 #include <EEPROM.h>
 #include "SPI.h"
-#include "mcp_can.h"//https://github.com/Seeed-Studio/CAN_BUS_Shield
+#include "mcp_can.h"
 #include <Wire.h>
 #include "Adafruit_MCP23017.h"
 #include "overCAN.h"
@@ -13,7 +16,7 @@
 #define CENTRAL_ID 0x00
 
 const int SPI_CS_PIN = 10;
-MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
+MCP_CAN CAN(SPI_CS_PIN);// Set CS pin
 
 Adafruit_MCP23017 IO;
 
@@ -94,7 +97,6 @@ void setup()
 }
 
 void loop() {
-
   //-------INICIO DA COMUNICAÇÃO------------
   // Verifica se recebeu uma mensagem
   if (!pacoteRecebido()) {
@@ -102,7 +104,7 @@ void loop() {
     if (millis() > msUltimoEnvio + (sensorConfig.intervaloEnvio * 1000)) {
       lerEntradas();
       enviarDados();
-      //msUltimoEnvio atribuido na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
+      //msUltimoEnvio atualizado na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
     }
   }
   //-------FIM DA COMUNICAÇÃO------------
@@ -110,8 +112,6 @@ void loop() {
     lerEntradas();
     msUltimaLeitura = millis();
   }
-
-
 }
 
 void iniciarIO() {
@@ -131,7 +131,7 @@ void iniciarIO() {
   for (char i = 0; i < 8; i++) {
     IO.pinMode(i, OUTPUT);
   }
-  atualizarSaidas();
+  atualizarSaidas(0);
 }
 
 /**
@@ -139,9 +139,6 @@ void iniciarIO() {
 */
 void lerEntradas() {
   boolean flagEnviar = false;
-  //  #if defined(DEBUG)
-  //    Serial.println("---------------------------");
-  //  #endif
   for (char i = 0; i <= 7; i++) {
     //entradas
     boolean valor = IO.digitalRead(i + 8);
@@ -149,32 +146,27 @@ void lerEntradas() {
       entradas[i] = valor;
       flagEnviar = true;
     }
-    //    #if defined(DEBUG)
-    //        Serial.print(entradas[i]); Serial.print(" ");
-    //    #endif
   }
   if (flagEnviar) enviarDados();
-  //  #if defined(DEBUG)
-  //    Serial.println();
-  //  #endif
 }
 
 /**
    Atualiza estado das saídas
 */
-void atualizarSaidas() {
-  //#if defined(DEBUG)
-  //  Serial.print("SAIDAS: ");
-  //#endif
+void atualizarSaidas(unsigned char estados) {
+#if defined(DEBUG)
+  Serial.print("SAIDAS: ");
+#endif
   for (char i = 0; i < 8; i++) {
+    saidas[i] = bitRead(estados, i);
     IO.digitalWrite(i, saidas[i]);
-    //#if defined(DEBUG)
-    //    Serial.print(saidas[i]); Serial.print(" ");
-    //#endif
+#if defined(DEBUG)
+    Serial.print(saidas[i]); Serial.print(" ");
+#endif
   }
-  //#if defined(DEBUG)
-  //  Serial.println();
-  //#endif
+#if defined(DEBUG)
+  Serial.println();
+#endif
 }
 
 /**
@@ -217,59 +209,48 @@ void enviarConfig() {
 void enviarDados() {
   unsigned char msgDados[2];
 
+  //entradas
   msgDados[0] = INPUT_1_STATE;
   msgDados[1] = 0;
   //Converte os dados binarios em um unico numero de 8bits
   for (char i = 7; i >= 0; i--) {
-    //entradas
-    msgDados[1] = (msgDados[1] << 1);
-    msgDados[1] += entradas[i];
-    Serial.print(entradas[i]);
-    Serial.print(" ");
+    bitWrite(msgDados[1], i, entradas[i]);
   }
-  Serial.println();
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
-
   delay(10);
+
+  //saidas
   msgDados[0] = OUTPUT_1_STATE;
   msgDados[1] = 0;
   //Converte os dados binarios em um unico numero de 8bits
   for (char i = 7; i >= 0; i--) {
-    //saidas
-    msgDados[1] = (msgDados[1] << 1);
-    msgDados[1] += saidas[i];
-    //        Serial.print(saidas[i]);
-    //    Serial.print(" ");
+    bitWrite(msgDados[1], i, saidas[i]);
   }
-  //  Serial.println();
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
 
   msUltimoEnvio = millis();
 }
 
 bool pacoteRecebido() {
+  //verifica se foi recebido pacote
   if (CAN.checkReceive() != CAN_MSGAVAIL) {
     return false;
   }
+
   unsigned char buf[8];
   unsigned char len = 0;
 
+  //Estrutura que vai receber a mensagem
   struct {
     unsigned int canId;
     unsigned char comando;
     unsigned char msg[6];
   } canPkt;
 
+  //Le a mensagem da placa
   CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
 
-#if defined(DEBUG)
-  for (char j = 0; j < 8; j++) {
-    Serial.print(buf[j]);
-    Serial.print("  ");
-  }
-  Serial.println();
-#endif
-
+  //Pega o ID do transmissor
   if (CAN.getCanId() != CENTRAL_ID) {
 #if defined(DEBUG)
     Serial.println(F("Mensagem nao enviada pela central"));
@@ -277,7 +258,9 @@ bool pacoteRecebido() {
     return false;
   }
 
+  //Pega o ID do receptor
   canPkt.canId = buf[0];
+  //confere se o ID é para este dispositivo
   if (canPkt.canId != sensorConfig.endereco) {
     leSensorConfig();
 #if defined(DEBUG)
@@ -289,8 +272,10 @@ bool pacoteRecebido() {
     return false;
   }
 
+  //Pega o comando enviado
   canPkt.comando = buf[1];
 
+  //verifica o comando
   switch (canPkt.comando) {
     case SEND_CONFIG: {
 #if defined(DEBUG)
@@ -334,11 +319,7 @@ bool pacoteRecebido() {
 #if defined(DEBUG)
         Serial.println(F("CHANGE_OUTPUT_STATE"));
 #endif
-        if (buf[2] > 7) return false;
-        if (buf[3] == 0 || buf[3] == 1) {
-          saidas[buf[2]] = buf[3] == 1;
-          atualizarSaidas();
-        }
+        atualizarSaidas(buf[2]);
       };
       break;
 
@@ -348,12 +329,4 @@ bool pacoteRecebido() {
 #endif
   }
   return true;
-}
-
-void chartobin ( unsigned char c, unsigned char *s ) {
-  char i;
-  for ( i = 7; i >= 0; i-- )
-  {
-    s[i] = (c >> i) % 2;
-  }
 }
