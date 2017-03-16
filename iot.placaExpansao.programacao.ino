@@ -10,7 +10,7 @@
 #include "mcp_can.h"
 #include <Wire.h>
 #include "Adafruit_MCP23017.h"
-#include "overCAN.h"
+#include "ctmNectar.h"
 
 #define DEBUG
 #define CENTRAL_ID 0x00
@@ -130,8 +130,8 @@ void iniciarIO() {
 
   for (char i = 0; i < 8; i++) {
     IO.pinMode(i, OUTPUT);
+    atualizarSaidas(i, 0);
   }
-  atualizarSaidas(0);
 }
 
 /**
@@ -153,20 +153,12 @@ void lerEntradas() {
 /**
    Atualiza estado das saídas
 */
-void atualizarSaidas(unsigned char estados) {
-#if defined(DEBUG)
-  Serial.print("SAIDAS: ");
-#endif
-  for (char i = 0; i < 8; i++) {
-    saidas[i] = bitRead(estados, i);
-    IO.digitalWrite(i, saidas[i]);
-#if defined(DEBUG)
-    Serial.print(saidas[i]); Serial.print(" ");
-#endif
+void atualizarSaidas(unsigned char saida, unsigned char estado) {
+  if (saida < 8) {
+    if (estado == 0 || estado == 1) {
+      IO.digitalWrite(saida, estado);
+    }
   }
-#if defined(DEBUG)
-  Serial.println();
-#endif
 }
 
 /**
@@ -319,7 +311,7 @@ bool pacoteRecebido() {
 #if defined(DEBUG)
         Serial.println(F("CHANGE_OUTPUT_STATE"));
 #endif
-        atualizarSaidas(buf[2]);
+        atualizarSaidas(buf[2], buf[3]);
       };
       break;
 
