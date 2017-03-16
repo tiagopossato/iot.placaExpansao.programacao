@@ -30,7 +30,7 @@ void reiniciar() {
 #if defined(DEBUG)
   Serial.println("Reiniciando...");
 #endif
-  wdt_enable(WDTO_15MS);
+  //Como o Watchdog está habilitado para 15ms, trava o programa e espera o watchdog reiniciar
   while (1);
 }
 
@@ -94,6 +94,8 @@ void setup()
   unsigned char msgCfg[1] = {ONLINE};
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgCfg), msgCfg);
 
+  //Inicializa o Watchdog
+  wdt_enable(WDTO_15MS);
 }
 
 void loop() {
@@ -112,6 +114,7 @@ void loop() {
     lerEntradas();
     msUltimaLeitura = millis();
   }
+  wdt_reset();  //  reseta o watchdog
 }
 
 void iniciarIO() {
