@@ -12,7 +12,7 @@
 #include "Adafruit_MCP23017.h"
 #include "ctmNectar.h"
 
-#define DEBUG
+//#define DEBUG
 #define CENTRAL_ID 0x00
 
 const int SPI_CS_PIN = 10;
@@ -95,7 +95,7 @@ void setup()
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgCfg), msgCfg);
 
   //Inicializa o Watchdog
-  wdt_enable(WDTO_15MS);
+  wdt_enable(WDTO_500MS);
 }
 
 void loop() {
