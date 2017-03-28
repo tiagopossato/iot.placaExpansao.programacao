@@ -95,7 +95,7 @@ void setup()
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgCfg), msgCfg);
 
   //Inicializa o Watchdog
-  wdt_enable(WDTO_500MS);
+  wdt_enable(WDTO_250MS);
 }
 
 void loop() {
@@ -106,13 +106,16 @@ void loop() {
     if (millis() > msUltimoEnvio + (sensorConfig.intervaloEnvio * 1000)) {
       lerEntradas();
       enviarDados();
-      //msUltimoEnvio atualizado na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
+      //msUltimoEnvio atualizado na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo      
     }
   }
   //-------FIM DA COMUNICAÇÃO------------
   if (millis() > msUltimaLeitura + intervaloLeituras) {
     lerEntradas();
     msUltimaLeitura = millis();
+    if(CAN.checkError() != 0){
+      reiniciar();
+    }
   }
   wdt_reset();  //  reseta o watchdog
 }
