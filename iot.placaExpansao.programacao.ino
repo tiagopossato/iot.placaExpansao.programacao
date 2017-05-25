@@ -106,14 +106,14 @@ void loop() {
     if (millis() > msUltimoEnvio + (sensorConfig.intervaloEnvio * 1000)) {
       lerEntradas();
       enviarDados();
-      //msUltimoEnvio atualizado na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo      
+      //msUltimoEnvio atualizado na funcao enviarDados, para incluir nas contagens quando os dados são enviados por solicitação do mestre e não por tempo
     }
   }
   //-------FIM DA COMUNICAÇÃO------------
   if (millis() > msUltimaLeitura + intervaloLeituras) {
     lerEntradas();
     msUltimaLeitura = millis();
-    if(CAN.checkError() != 0){
+    if (CAN.checkError() != 0) {
       reiniciar();
     }
   }
@@ -160,6 +160,13 @@ void lerEntradas() {
    Atualiza estado das saídas
 */
 void atualizarSaidas(unsigned char saida, unsigned char estado) {
+#if defined(DEBUG)
+Serial.print("Saida ");
+Serial.print(saida);
+Serial.print(": ");
+Serial.println(estado);
+
+#endif
   if (saida < 8) {
     if (estado == 0 || estado == 1) {
       IO.digitalWrite(saida, estado);
@@ -225,7 +232,6 @@ void enviarDados() {
     bitWrite(msgDados[1], i, saidas[i]);
   }
   CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
-
   msUltimoEnvio = millis();
 }
 
