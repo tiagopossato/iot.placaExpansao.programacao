@@ -57,6 +57,10 @@ uint32_t intervaloLeituras  = 20;
 
 void setup()
 {
+  pinMode(8, OUTPUT);
+  pinMode(7, OUTPUT);
+  digitalWrite(7, HIGH);
+  delay(2          000);
 #if defined(DEBUG)
   Serial.begin(115200);
   Serial.println(F(""));
@@ -97,8 +101,20 @@ void setup()
 
   //Inicializa o Watchdog
   wdt_enable(WDTO_250MS);
-  pinMode(8, OUTPUT);
+  digitalWrite(7, LOW);
+
 }
+
+// Variables will change :
+int ledState = LOW;             // ledState used to set the LED
+
+// Generally, you should use "unsigned long" for variables that hold time
+// The value will quickly become too large for an int to store
+unsigned long previousMillis = 0;        // will store last time LED was updated
+
+// constants won't change :
+const long interval = 1000;           // interval at which to blink (milliseconds)
+
 
 void loop() {
   //-------INICIO DA COMUNICAÇÃO------------
@@ -116,11 +132,28 @@ void loop() {
     lerEntradas();
     msUltimaLeitura = millis();
     if (CAN.checkError() != 0) {
-      reiniciar();
+      //Serial.println(CAN.checkError());
+      //reiniciar();
     }
   }
   wdt_reset();  //  reseta o watchdog
   digitalWrite(8, !digitalRead(8));
+ unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+
+    // if the LED is off turn it on and vice-versa:
+    if (ledState == LOW) {
+      ledState = HIGH;
+    } else {
+      ledState = LOW;
+    }
+
+    // set the LED with the ledState of the variable:
+    atualizarSaidas(1, ledState);
+  }
+
 }
 
 void iniciarIO() {
