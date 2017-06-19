@@ -23,6 +23,7 @@ Adafruit_MCP23017 IO;
 
 const unsigned char resetIO = 15; //pino ligado ao pino de reset do controlador de IO
 
+bool triggerWdtState = false;
 /**
    Função para resetar o programa
    Utiliza o WatchDog Timer
@@ -60,7 +61,7 @@ void setup()
   pinMode(8, OUTPUT);
   pinMode(7, OUTPUT);
   digitalWrite(7, HIGH);
-  delay(2          000);
+  delay(2000);
 #if defined(DEBUG)
   Serial.begin(115200);
   Serial.println(F(""));
@@ -105,16 +106,6 @@ void setup()
 
 }
 
-// Variables will change :
-int ledState = LOW;             // ledState used to set the LED
-
-// Generally, you should use "unsigned long" for variables that hold time
-// The value will quickly become too large for an int to store
-unsigned long previousMillis = 0;        // will store last time LED was updated
-
-// constants won't change :
-const long interval = 1000;           // interval at which to blink (milliseconds)
-
 
 void loop() {
   //-------INICIO DA COMUNICAÇÃO------------
@@ -132,27 +123,12 @@ void loop() {
     lerEntradas();
     msUltimaLeitura = millis();
     if (CAN.checkError() != 0) {
-      //Serial.println(CAN.checkError());
-      //reiniciar();
+      reiniciar();
     }
   }
   wdt_reset();  //  reseta o watchdog
-  digitalWrite(8, !digitalRead(8));
- unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    // save the last time you blinked the LED
-    previousMillis = currentMillis;
-
-    // if the LED is off turn it on and vice-versa:
-    if (ledState == LOW) {
-      ledState = HIGH;
-    } else {
-      ledState = LOW;
-    }
-
-    // set the LED with the ledState of the variable:
-    atualizarSaidas(1, ledState);
-  }
+  digitalWrite(8, triggerWdtState);
+  triggerWdtState = !triggerWdtState;
 
 }
 
@@ -303,6 +279,7 @@ void enviarDados() {
     delay(10);
   }
 
+  msUltimoEnvio = millis();
 }
 
 bool pacoteRecebido() {
