@@ -145,7 +145,7 @@ void iniciarIO() {
 
   for (char i = 0; i < 8; i++) {
     IO.pinMode(i, OUTPUT);
-    atualizarSaidas(i, 0);
+    atualizarSaida(i, 0);
   }
 }
 
@@ -168,17 +168,17 @@ void lerEntradas() {
 /**
    Atualiza estado das saídas
 */
-void atualizarSaidas(unsigned char saida, unsigned char estado) {
+void atualizarSaida(unsigned char saida, unsigned char estado) {
 #if defined(DEBUG)
   Serial.print("Saida ");
   Serial.print(saida);
   Serial.print(": ");
   Serial.println(estado);
-
 #endif
   if (saida < 8) {
     if (estado == 0 || estado == 1) {
       IO.digitalWrite(saida, estado);
+      saidas[saida] = estado;
     }
   }
 }
@@ -230,11 +230,22 @@ void lerEntradaDigital(int8_t entrada) {
   }
 }
 
+void lerSaidaDigital(int8_t saida) {
+  if (saida >= 0 && saida < 8) {
+    unsigned char msg[4] = {0};
+
+    msg[0] = (uint8_t)SAIDA_DIGITAL;
+    msg[1] = (uint8_t)saida;
+    msg[2] = saidas[saida];
+    CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msg), msg);
+  }
+}
+
 void enviarDados() {
   unsigned char msgDados[3];
   msgDados[0] = (uint8_t)ENTRADA_DIGITAL;
 
-  for (uint8_t i = 0; i < 7; i++) {
+  for (uint8_t i = 0; i <= 7; i++) {
     msgDados[1] = i;
     msgDados[2] = (uint8_t)entradas[i];
     CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
@@ -243,7 +254,7 @@ void enviarDados() {
 
   msgDados[0] = (uint8_t)SAIDA_DIGITAL;
 
-  for (uint8_t i = 0; i < 7; i++) {
+  for (uint8_t i = 0; i <= 7; i++) {
     msgDados[1] = i;
     msgDados[2] = (uint8_t)saidas[i];
     CAN.sendMsgBuf(sensorConfig.endereco, 0, sizeof(msgDados), msgDados);
@@ -330,7 +341,11 @@ bool pacoteRecebido() {
         Serial.println(canPkt.valor);
 #endif
         canPkt.valor = canPkt.valor / 100;
-        atualizarSaidas(canPkt.grandeza, canPkt.valor);
+        if (canPkt.valor == -1) {
+          lerSaidaDigital(canPkt.grandeza);
+        } else {
+          atualizarSaida(canPkt.grandeza, canPkt.valor);
+        }
         break;
       };
     /*--------fim das saidas digitais-----------*/
